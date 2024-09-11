@@ -1,34 +1,31 @@
 package main
 
 import (
-	"fmt"
 	"log"
-	"net/http"
-	"os"
+
+	"github.com/gin-gonic/gin"
+	"github.com/riverajer/hot-bread-api/controllers"
+	"github.com/riverajer/hot-bread-api/initializers"
 )
 
-func main() {
-	log.Print("starting server...")
-	http.HandleFunc("/", handler)
-
-	// Determine port for HTTP service.
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "3000"
-		log.Printf("defaulting to port %s", port)
-	}
-
-	// Start HTTP server.
-	log.Printf("listening on port %s", port)
-	if err := http.ListenAndServe(":"+port, nil); err != nil {
-		log.Fatal(err)
-	}
+func init() {
+	initializers.LoadEnvVariables()
+	initializers.ConnectToDb()
+	initializers.SyncDatabase()
 }
 
-func handler(w http.ResponseWriter, r *http.Request) {
-	name := os.Getenv("NAME")
-	if name == "" {
-		name = "World"
-	}
-	fmt.Fprintf(w, "Hello %s!\n", name)
+func main() {
+	r := gin.Default()
+
+	r.GET("/ping", func(c *gin.Context) {
+		c.JSON(200, gin.H{
+			"message": "pong",
+		})
+	})
+
+	r.POST("/signup", controllers.Signup)
+
+	r.Run()
+
+	log.Print("starting server!...")
 }
