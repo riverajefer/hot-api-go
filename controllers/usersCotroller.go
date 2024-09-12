@@ -2,8 +2,11 @@ package controllers
 
 import (
 	"net/http"
+	"os"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/riverajer/hot-bread-api/initializers"
 	"github.com/riverajer/hot-bread-api/models"
 	"golang.org/x/crypto/bcrypt"
@@ -51,5 +54,75 @@ func Signup(c *gin.Context) {
 
 	// Respond
 	c.JSON(http.StatusOK, gin.H{})
+
+}
+
+func Login(c *gin.Context) {
+	var body struct {
+		Email    string
+		Password string
+	}
+
+	if c.Bind(&body) != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Failed to read body",
+		})
+		return
+	}
+
+	// look up requested user
+	var user models.User
+	initializers.DB.First(&user, "email = ?", body.Email)
+
+	if user.ID == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid email or password",
+		})
+		return
+	}
+
+	err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(body.Password))
+
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid email or password",
+		})
+		return
+	}
+
+	// Generate jwt token
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"sub": user.ID,
+		"exp": time.Now().Add(time.Hour * 24 * 30).Unix(), // 30 días desde el momento actual
+	})
+
+	tokenString, err := token.SignedString([]byte(os.Getenv("SECRET")))
+
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Failed to create token",
+		})
+		return
+	}
+
+	// save in cookie
+
+	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetCookie("Authorization", tokenString, 3600*24*30, "", "", false, true)
+
+	// send it back
+	c.JSON(http.StatusOK, gin.H{
+		"token": tokenString,
+	})
+
+}
+
+func Validate(c *gin.Context) {
+	user, _ := c.Get("user")
+
+	c.JSON(http.StatusOK, gin.H{
+		"User": user,
+	})
 
 }

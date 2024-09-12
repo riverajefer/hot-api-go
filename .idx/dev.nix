@@ -23,7 +23,7 @@
       };
       # Runs when a workspace is (re)started
       onStart= {
-        run-server = "air";
+        run-server = "";
       };
       # To run something each time the workspace is first created, use the `onStart` hook
     };

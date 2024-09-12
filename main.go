@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/riverajer/hot-bread-api/controllers"
 	"github.com/riverajer/hot-bread-api/initializers"
+	"github.com/riverajer/hot-bread-api/middleware"
 )
 
 func init() {
@@ -24,6 +25,8 @@ func main() {
 	})
 
 	r.POST("/signup", controllers.Signup)
+	r.POST("/login", controllers.Login)
+	r.GET("/validate", middleware.RequireAuth, controllers.Validate)
 
 	r.Run()
 
