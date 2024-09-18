@@ -4,9 +4,8 @@ import (
 	"log"
 
 	"github.com/gin-gonic/gin"
-	"github.com/riverajer/hot-bread-api/controllers"
 	"github.com/riverajer/hot-bread-api/initializers"
-	"github.com/riverajer/hot-bread-api/middleware"
+	"github.com/riverajer/hot-bread-api/routes"
 )
 
 func init() {
@@ -24,18 +23,8 @@ func main() {
 		})
 	})
 
-	// auth routes
-	r.POST("/signup", controllers.Signup)
-	r.POST("/login", controllers.Login)
-	r.GET("/validate", middleware.RequireAuth, controllers.Validate)
-
-	// user routes
-	r.POST("/users", controllers.CreateUser)
-	r.GET("/users", controllers.GetUsers)
-	r.GET("/users/:id", controllers.GetUser)
-	r.PUT("/users/:id", controllers.UpdateUser)
-	r.DELETE("/users/:id", controllers.DeleteUser)
-
+	routes.AuthRoutes(r)
+	routes.UserRoutes(r)
 	r.Run()
 
 	log.Print("starting server!...")
