@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/riverajer/hot-bread-api/initializers"
 	"github.com/riverajer/hot-bread-api/routes"
+	"github.com/riverajer/hot-bread-api/routes/products"
 )
 
 func init() {
@@ -25,6 +26,7 @@ func main() {
 
 	routes.AuthRoutes(r)
 	routes.UserRoutes(r)
+	products.CategoryRoutes(r)
 	r.Run()
 
 	log.Print("starting server!...")
