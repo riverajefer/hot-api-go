@@ -2,127 +2,92 @@ package controllers
 
 import (
 	"net/http"
-	"os"
-	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/riverajer/hot-bread-api/initializers"
 	"github.com/riverajer/hot-bread-api/models"
+	"github.com/riverajer/hot-bread-api/utils"
 	"golang.org/x/crypto/bcrypt"
 )
 
+// Estructuras de request para Signup y Login
+type LoginBody struct {
+	Email    string `json:"email" binding:"required,email"`
+	Password string `json:"password" binding:"required"`
+}
+
+type SignupBody struct {
+	Email    string `json:"email" binding:"required,email"`
+	Password string `json:"password" binding:"required"`
+	Name     string `json:"name" binding:"required"`
+}
+
+// Signup
 func Signup(c *gin.Context) {
-	// Get the email/pass of req body
-	var body struct {
-		Email    string
-		Password string
-		Name     string
-	}
-	if c.Bind(&body) != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Failed to read body",
-		})
+	var body SignupBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		utils.RespondWithError(c, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
-	// Has the password
-	hash, err := bcrypt.GenerateFromPassword([]byte(body.Password), 10)
-
+	hash, err := utils.HashPassword(body.Password)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Failed to hash password",
-		})
+		utils.RespondWithError(c, http.StatusInternalServerError, "Failed to hash password")
 		return
 	}
 
-	// Create the User
 	user := models.User{
 		Name:     body.Name,
 		Email:    body.Email,
-		Password: string(hash),
+		Password: hash,
 	}
 
-	result := initializers.DB.Create(&user)
-
-	if result.Error != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Failed to create user: " + result.Error.Error(),
-		})
+	if result := initializers.DB.Create(&user); result.Error != nil {
+		utils.RespondWithError(c, http.StatusInternalServerError, "Failed to create user")
 		return
 	}
 
-	// Respond
-	c.JSON(http.StatusOK, gin.H{})
-
+	c.JSON(http.StatusOK, gin.H{"message": "User created successfully"})
 }
 
+// Login
 func Login(c *gin.Context) {
-	var body struct {
-		Email    string
-		Password string
-	}
-
-	if c.Bind(&body) != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Failed to read body",
-		})
+	var body LoginBody
+	if err := c.ShouldBindJSON(&body); err != nil {
+		utils.RespondWithError(c, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
-	// look up requested user
 	var user models.User
-	initializers.DB.First(&user, "email = ?", body.Email)
-
-	if user.ID == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid email or password",
-		})
+	if err := initializers.DB.First(&user, "email = ?", body.Email).Error; err != nil {
+		utils.RespondWithError(c, http.StatusUnauthorized, "Invalid email or password")
 		return
 	}
 
-	err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(body.Password))
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(body.Password)); err != nil {
+		utils.RespondWithError(c, http.StatusUnauthorized, "Invalid email or password")
+		return
+	}
 
+	tokenString, err := utils.GenerateJWT(user.ID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid email or password",
-		})
+		utils.RespondWithError(c, http.StatusInternalServerError, "Failed to create token")
 		return
 	}
 
-	// Generate jwt token
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"sub": user.ID,
-		"exp": time.Now().Add(time.Hour * 24 * 30).Unix(), // 30 días desde el momento actual
-	})
-
-	tokenString, err := token.SignedString([]byte(os.Getenv("SECRET")))
-
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Failed to create token",
-		})
-		return
-	}
-
-	// save in cookie
-
+	// Guardar el token en una cookie
 	c.SetSameSite(http.SameSiteLaxMode)
 	c.SetCookie("Authorization", tokenString, 3600*24*30, "", "", false, true)
 
-	// send it back
 	c.JSON(http.StatusOK, gin.H{
 		"token": tokenString,
 	})
-
 }
 
+// Validate
 func Validate(c *gin.Context) {
 	user, _ := c.Get("user")
-
 	c.JSON(http.StatusOK, gin.H{
-		"User": user,
+		"user": user,
 	})
-
 }
