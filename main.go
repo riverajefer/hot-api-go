@@ -24,9 +24,17 @@ func main() {
 		})
 	})
 
+	// auth routes
 	r.POST("/signup", controllers.Signup)
 	r.POST("/login", controllers.Login)
 	r.GET("/validate", middleware.RequireAuth, controllers.Validate)
+
+	// user routes
+	r.POST("/users", controllers.CreateUser)
+	r.GET("/users", controllers.GetUsers)
+	r.GET("/users/:id", controllers.GetUser)
+	r.PUT("/users/:id", controllers.UpdateUser)
+	r.DELETE("/users/:id", controllers.DeleteUser)
 
 	r.Run()
 

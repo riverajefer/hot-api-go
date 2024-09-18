@@ -7,87 +7,131 @@ import (
 	"github.com/riverajer/hot-bread-api/initializers"
 	"github.com/riverajer/hot-bread-api/models"
 	"github.com/riverajer/hot-bread-api/utils"
-	"golang.org/x/crypto/bcrypt"
 )
 
-// Estructuras de request para Signup y Login
-type LoginBody struct {
-	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required"`
-}
+// Crud user controller
+func CreateUser(c *gin.Context) {
+	var body struct {
+		Name     string `json:"name"`
+		Email    string `json:"email"`
+		Password string `json:"password"`
+		Location string `json:"location"`
+		Phone    string `json:"phone"`
+		UserType string `json:"user_type"` // "Customer" o "Merchant"
+	}
 
-type SignupBody struct {
-	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required"`
-	Name     string `json:"name" binding:"required"`
-}
-
-// Signup
-func Signup(c *gin.Context) {
-	var body SignupBody
-	if err := c.ShouldBindJSON(&body); err != nil {
-		utils.RespondWithError(c, http.StatusBadRequest, "Invalid request body")
+	// Bind JSON request body to struct
+	if err := c.BindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
 		return
 	}
 
-	hash, err := utils.HashPassword(body.Password)
+	// Hash password
+	hashedPassword, err := utils.HashPassword(body.Password)
 	if err != nil {
-		utils.RespondWithError(c, http.StatusInternalServerError, "Failed to hash password")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error hashing password"})
 		return
 	}
 
+	// Create the user
 	user := models.User{
 		Name:     body.Name,
 		Email:    body.Email,
-		Password: hash,
+		Password: hashedPassword,
+		Location: body.Location,
+		Phone:    body.Phone,
+		UserType: models.UserType(body.UserType),
 	}
 
+	// Save to database
 	if result := initializers.DB.Create(&user); result.Error != nil {
-		utils.RespondWithError(c, http.StatusInternalServerError, "Failed to create user")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "User created successfully"})
+	c.JSON(http.StatusOK, gin.H{"message": "User created successfully", "user": user})
 }
 
-// Login
-func Login(c *gin.Context) {
-	var body LoginBody
-	if err := c.ShouldBindJSON(&body); err != nil {
-		utils.RespondWithError(c, http.StatusBadRequest, "Invalid request body")
+func GetUsers(c *gin.Context) {
+	var users []models.User
+
+	// Fetch all users from the database
+	if result := initializers.DB.Find(&users); result.Error != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"users": users})
+}
+
+func GetUser(c *gin.Context) {
+	id := c.Param("id")
+
+	var user models.User
+	// Find user by ID
+	if result := initializers.DB.First(&user, id); result.Error != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"user": user})
+}
+
+func UpdateUser(c *gin.Context) {
+	id := c.Param("id")
+
+	var body struct {
+		Name     string `json:"name"`
+		Email    string `json:"email"`
+		Location string `json:"location"`
+		Phone    string `json:"phone"`
+		UserType string `json:"user_type"`
+	}
+
+	// Bind JSON request body to struct
+	if err := c.BindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
 		return
 	}
 
 	var user models.User
-	if err := initializers.DB.First(&user, "email = ?", body.Email).Error; err != nil {
-		utils.RespondWithError(c, http.StatusUnauthorized, "Invalid email or password")
+	// Find user by ID
+	if result := initializers.DB.First(&user, id); result.Error != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
 		return
 	}
 
-	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(body.Password)); err != nil {
-		utils.RespondWithError(c, http.StatusUnauthorized, "Invalid email or password")
+	// Update fields
+	user.Name = body.Name
+	user.Email = body.Email
+	user.Location = body.Location
+	user.Phone = body.Phone
+	user.UserType = models.UserType(body.UserType)
+
+	// Save to database
+	if result := initializers.DB.Save(&user); result.Error != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
 		return
 	}
 
-	tokenString, err := utils.GenerateJWT(user.ID)
-	if err != nil {
-		utils.RespondWithError(c, http.StatusInternalServerError, "Failed to create token")
-		return
-	}
-
-	// Guardar el token en una cookie
-	c.SetSameSite(http.SameSiteLaxMode)
-	c.SetCookie("Authorization", tokenString, 3600*24*30, "", "", false, true)
-
-	c.JSON(http.StatusOK, gin.H{
-		"token": tokenString,
-	})
+	c.JSON(http.StatusOK, gin.H{"message": "User updated successfully", "user": user})
 }
 
-// Validate
-func Validate(c *gin.Context) {
-	user, _ := c.Get("user")
-	c.JSON(http.StatusOK, gin.H{
-		"user": user,
-	})
+func DeleteUser(c *gin.Context) {
+	id := c.Param("id")
+
+	var user models.User
+	// Find user by ID
+	if result := initializers.DB.First(&user, id); result.Error != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		return
+	}
+
+	// Delete the user
+	if result := initializers.DB.Delete(&user); result.Error != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": result.Error.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "User deleted successfully"})
 }

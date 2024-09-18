@@ -12,5 +12,5 @@ type Subscription struct {
 	// todo revisar este campo
 	// 	Notifications datatypes.JSON `json:"notifications"`  // JSON con las preferencias de notificación
 
-	Notifications []Notification `json:"notifications"` // Relación 1:N con Notificaciones
+	// Notifications []Notification `json:"notifications"` // Relación 1:N con Notificaciones
 }
