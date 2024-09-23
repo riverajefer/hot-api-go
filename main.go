@@ -27,6 +27,7 @@ func main() {
 	routes.AuthRoutes(r)
 	routes.UserRoutes(r)
 	products.CategoryRoutes(r)
+	products.ProductsRoutes(r)
 	r.Run()
 
 	log.Print("starting server!...")
